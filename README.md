@@ -1,5 +1,4 @@
 # Conception of a Discourse Glossary 
-## for German Climate Change Compounds
 IM project for the MSc Cognitive Systems at the Universität Potsdam, summer semester 2022, taught by Prof. Dr. Manfred Stede. 
 
 Developed by Anna-Janina Goecke (goecke@uni-potsdam.de).
