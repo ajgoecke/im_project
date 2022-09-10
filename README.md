@@ -6,8 +6,8 @@ Developed by Anna-Janina Goecke (goecke@uni-potsdam.de).
 **Project Description**: The projects seeks to create and enrich a discourse glossary of German climate change compounds. 
 
 This repository contains R notebook files for:
-- Corpus-based methods: `im_corpusmethods`
-- Adding new glossary entries: `im_addcompounds`
+- Corpus-based methods: `im_corpus_methods`
+- Adding new glossary entries: `im_add_compounds`
 
 Furthermore, you can find the project report, plots and the corpus files within the repository.  
 
