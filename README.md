@@ -5,15 +5,26 @@ Developed by Anna-Janina Goecke (goecke@uni-potsdam.de).
 
 **Project Description**: The projects seeks to create and enrich a discourse glossary of German climate change compounds. 
 
-This repository contains R notebook files for:
-- Corpus-based methods: `im_corpus_methods`
-- Adding new glossary entries: `im_add_compounds`
+### Notebook Files
 
-Furthermore, you can find the project report, plots and the corpus files within the repository.  
+The folder `notebooks` contains R notebook files for:
+- `im_project.Rmd`: Code and documentation for project report
+- `im_add_compounds.Rmd`: Add new glossary entries and save to JSON file
+- `im_add_corpus.Rmd`: Add new data to corpus
+
+Furthermore, you can find the project report and the corpus files within the repository.  
 
 ### Corpus Files
-This folder contains all corpus files and rare text files from the websites which we used to generate the corpora. 
+The folder `corpus_data`contains all corpus files and rare text files from the websites which we used to generate the corpora. 
+
+- contains the corpora (new and old version)
+- `text_files.zip` (all text files which are contained in the corpora)
+
+### Glossary Files
+The folder `files` contains a table and list of the compound words which we use in the glossary.
+-`compounds.csv`: Data frame with the compound words and its associated word forms
+- `wordlist.txt`: List of compound words
 
 ### How to run:
 We recommend running the notebooks using RStudio. The following libraries are required: 
-`quanteda`,`readtext`,`tidyverse`,`spacyr`,`stringr`,`jsonlite`,`dplyr`,`purrr`
+`quanteda`, `quanteda.textplots`, `quanteda.textstats`, `readtext`, `tidyverse`, `spacyr`, `stringr`, `textcat`, `data.table`, `jsonlite`, `dplyr`, `purrr`
