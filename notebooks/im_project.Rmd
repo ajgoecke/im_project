@@ -36,8 +36,8 @@ spacy_initialize(model = "de_core_news_sm")
 (Please make sure that the path is set to the current directory to run this code).
 ```{r}
 # load corpus files 
-pro2000 = readRDS("../corpus_data/pro2000.rds")
-contra2000 = readRDS("../corpus_data/contra2000.rds")
+pro2000 = readRDS("../corpus_data/corpora/pro2000.rds")
+contra2000 = readRDS("../corpus_data/corpora/contra2000.rds")
 
 # load list of final climate change compounds 
 compounds <- scan("../files/wordlist.txt", what="", sep="\n")
@@ -52,6 +52,10 @@ compound_df$compound_forms <- tolower(compound_df$compound_forms)
 ```
 
 # 1. Preprocessing
+To preprocess the corpora, we perform several steps:
+- stop word removal
+- lemmazitaion
+- removal of hyphens
 
 ## 1.1 Retrieve Stop Lists 
 ```{r}
@@ -102,6 +106,7 @@ for (words in compound_df$compound_forms){
 }
 ```
 
+This is still part of spacyr's lemmatization procedure. 
 ```{r}
 # replace token with lemma - Pro Corpus
 sp_pro2000$token <- sp_pro2000$lemma
@@ -111,6 +116,7 @@ sp_contra2000$token <- sp_contra2000$lemma
 ```
 
 ### Remove Hyphens from Words and Create Tokens Object 
+Some words contain a hyphen which is being removed in the following step. E.g. "Klima-skeptiker" becomes "Klimaskeptiker".
 ```{r}
 # remove hyphens from tokens
 sp_p2000_tokens <- as.tokens(sp_pro2000)
@@ -126,12 +132,14 @@ sp_c2000_tokens <- tokens_replace(toks_comp, toks_hyphenated, gsub("-", "", toks
 
 ### Apply Preprocessing 
 ```{r}
+# apply preprocessing to pro corpus tokens
 sp_p2000_tokens <- sp_p2000_tokens %>% 
   tokens(remove_punct = TRUE, remove_numbers = TRUE, remove_symbols = TRUE, remove_url = TRUE, 
          remove_separators = TRUE, split_hyphens=FALSE) %>% 
   tokens_tolower() %>% 
   tokens_remove(pattern = full_stopwords, padding = FALSE)
 
+# apply preprocessing to contra corpus tokens
 sp_c2000_tokens <- sp_c2000_tokens %>% 
   tokens(remove_punct = TRUE, remove_numbers = TRUE, remove_symbols = TRUE, remove_url = TRUE, 
          remove_separators = TRUE, split_hyphens=FALSE) %>% 
@@ -140,6 +148,7 @@ sp_c2000_tokens <- sp_c2000_tokens %>%
 ```
 
 ## 1.3 Create DFM 
+In a last step, we generate a Document-Feature-Matrix which we need for the upcoming corpus-based methods. 
 ```{r}
 # create dfm
 dfm_p2000_lemma <- dfm(sp_p2000_tokens)

@@ -31,8 +31,8 @@ if(word %in% colnames(glossary.tibble))
 glossary.df <- as.data.frame(do.call("cbind", glossary.tibble))
 
 # load corpus files
-contra2000 <- readRDS("../corpus_data/contra2000.rds")
-pro2000 <- readRDS("../corpus_data/pro2000.rds")
+contra2000 <- readRDS("../corpus_data/corpora/contra2000.rds")
+pro2000 <- readRDS("../corpus_data/corpora/pro2000.rds")
 
 # create "sentence" tokens for p2000 and c2000 corpus
 p2000_toks.sent <- tokens(pro2000, remove_punct = FALSE, remove_symbols = TRUE,
