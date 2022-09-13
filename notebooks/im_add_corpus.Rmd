@@ -1,0 +1,111 @@
+---
+title: "Add Data to Corpus"
+output: html_notebook
+---
+
+# 0. Requirements 
+```{r}
+#install.packages("quanteda")
+#install.packages("readtext")
+#install.packages("textcat")
+
+# load libraries
+library(quanteda)
+library(readtext)
+library(textcat)
+```
+
+# 1. Web Scraping with Trafilatura
+This step is necessary to retrieve text data from websites. In a first step, a list of links of all the subpages of a website is being created. Next, this list of links is processed and the text data is being retrieved and saved in .txt files. This step should be executed in the terminal, not in R.
+
+```{r eval=FALSE, warning=FALSE, include=FALSE}
+# run link discovery through website and store the resulting links in a file
+# use option --sitemap to search for sitemaps links
+# use option --crawl to discover internal links by hopping from page to page
+$ trafilatura --sitemap "https://www.klimareporter.de" --list > klimareporterlinks.txt
+
+# to process list of links and get texts
+$ trafilatura -i klimareporterlinks.txt -o klimareporter_texts
+```
+
+# 2. Create Corpus (from text files)
+
+## 2.1 Load Texts
+```{r}
+# you can get the current directory for importing the text files by setting current directory and open relative path from there with the following line:
+
+#setwd("path_to_directory")
+
+# load climate change activists texts
+text <- readtext("directory/*") # /* is used to retrieve all files inside the directory 
+```
+
+## 2.2 Build Corpus
+```{r}
+# build corpus for each text with "origin" tag
+# specify language for each text to get rid of non-German texts 
+
+# create corpus
+text_corpus <- corpus(text)
+docvars(text_corpus, "origin") <- "origin_tag" # change string to your desired origin tag
+docvars(text_corpus, "language") <- textcat(text_corpus)
+
+# drop all non german texts
+text_corpus <- corpus_subset(text_corpus, language == "german", drop_docid = TRUE)
+```
+
+## 2.3 (Optional) Create a Subcorpus 
+
+```{r}
+# get random sample corpus, insert desired size count
+subcorpus <- corpus_sample(text_corpus, size = 2000)
+```
+
+## 2.4 Save Corpus to .rds format for later use
+```{r}
+# save corpus files as .rds file for later use
+saveRDS(text_corpus, "directory/text_corpus.rds")
+```
+
+# 3. Merge Corpora
+To add the new corpus to our existing corpus, we first load our existing corpora and then merge the new one into it. 
+
+```{r}
+# load old corpus
+old_corpus = readRDS("directory/old_corpus.rds")
+
+# combine old and new corpus
+new_corpus = text_corpus + old_corpus
+```
+
+## Save Corpus to .rds format for later use
+```{r}
+# save corpus files as .rds file for later use
+saveRDS(new_corpus, "directory/new_corpus.rds")
+```
+
+---------------
+# Optional 
+# 4. Corpus Exploration
+
+## 4.1 Load Corpus
+```{r}
+text_corpus = readRDS("corpora/text_corpus.rds")
+```
+
+## 4.2 Overview
+```{r}
+# retrieve overview of corpus information for sceptics corpus
+summary(text_corpus, n=10)
+```
+
+## 4.3 Sentences
+```{r}
+# get mean of sentences count for corpus
+sentences = summary(text_corpus, n=ndoc(pro2000))$Sentences
+mean(sentences)
+```
+
+
+
+

@@ -1,0 +1,98 @@
+---
+title: "Add Glossary Entries to JSON File"
+output: html_notebook
+---
+# 1. Requirements
+```{r}
+#insert word here
+word = "Klimakonferenz"
+```
+
+## 1.1 Load Packages and Data
+```{r message=FALSE, warning=FALSE}
+# load packages
+packages <- c("jsonlite", "dplyr", "purrr", "quanteda", "readtext")
+purrr::walk(packages, library, character.only = TRUE, warn.conflicts = FALSE)
+
+# load json from url or file
+#data <- jsonlite::fromJSON("../files/glossary.json")
+data <- jsonlite::fromJSON("http://www.klimadiskurs.info/download/json")
+
+# convert json to data frame 
+glossary.tibble <- as_tibble(data, validate = F) #first turn into tibble
+
+# add new column if compound word not already in glossary
+if(word %in% colnames(glossary.tibble))
+{warning("Kompositum existiert schon!");
+} else {
+  glossary.tibble[word] <- NA}
+
+# convert tibble to data frame 
+glossary.df <- as.data.frame(do.call("cbind", glossary.tibble))
+
+# load corpus files
+contra2000 <- readRDS("../corpus_data/contra2000.rds")
+pro2000 <- readRDS("../corpus_data/pro2000.rds")
+
+# create "sentence" tokens for p2000 and c2000 corpus
+p2000_toks.sent <- tokens(pro2000, remove_punct = FALSE, remove_symbols = TRUE,
+                  remove_numbers = TRUE, remove_url = TRUE, remove_separators = TRUE, 
+                  what = "sentence")
+
+c2000_toks.sent <- tokens(contra2000, remove_punct = FALSE, remove_symbols = TRUE,
+                  remove_numbers = TRUE, remove_url = TRUE, remove_separators = TRUE, 
+                  what = "sentence")
+```
+
+# 2. New Glossary Entry
+## 2.1 Retrieve Information for new Compound Word
+```{r}
+# add term, i.e. word itself
+glossary.df['term', word] <- word
+
+# add id (length of dataframe since we append it to the tail)
+glossary.df['id', word] <-ncol(glossary.df)
+
+# add definition, empty string if no definition available
+glossary.df['definition', word] <- " "
+
+# add sources, empty list if no sources available
+glossary.df['sources', word][[1]] <- list(list())
+
+# add related words, empty list if no related words available
+glossary.df['related', word][[1]] <- list(list())
+
+# add spellings, i.e. word itself and version with hyphen
+hyp <- gsub('(.{5})(.*)', '\\1-\\2', word) # put hyphen after "Klima"
+hyp <- gsub("(^|-)([[:alpha:]])", "\\1\\U\\2", hyp, perl=TRUE) # convert first letter of second noun part to upper case 
+
+glossary.df['spellings', word][[1]] <- list(c(word,hyp))
+
+# add examples
+# check keyword in context for each corpus 
+pro_kwic <- kwic(p2000_toks.sent, word, valuetype = 'regex', window = 1)
+con_kwic <- kwic(c2000_toks.sent, word, valuetype = 'regex', window = 1)
+
+# get random sample sentences (2 each) that contains the keyword
+try(pro_sents <- pro_kwic[sample(nrow(pro_kwic), 2), ]$keyword, silent=TRUE)
+try(con_sents <- con_kwic[sample(nrow(con_kwic), 2), ]$keyword, silent = TRUE)
+
+glossary.df['examples', word][[1]] <- list(c(pro_sents,con_sents))
+
+# add association, if keyword not found in pro/contra corpus, do not add id
+association <- c()
+if(exists("con_sents") == TRUE){
+  association <- append(association,0)} # add 0 if keyword found in contra corpus
+if(exists("pro_sents") == TRUE){
+  association <- append(association,1)} # add 1 if keyword found in pro corpus
+
+glossary.df['association', word][[1]] <- list(association)
+```
+
+## Save Data 
+```{r}
+# save data frame to json file 
+glossary_list <- as.list(glossary.df) # first convert to list
+glossary_json <- jsonlite::toJSON(glossary_list, pretty=TRUE, auto_unbox=TRUE, rownames=TRUE) # save to json
+#write(glossary_json, "glossary_new.json") # write to directory
+```

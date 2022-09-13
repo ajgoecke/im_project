@@ -1,0 +1,356 @@
+---
+title: "IM Project Code"
+output: html_notebook
+---
+
+# 0. Load Libraries and Corpus Files 
+### Prerequisites
+To open and use this notebook file you need to install the following:
+```{r message=FALSE, warning=FALSE}
+# intall necessary packages
+#install.packages("quanteda")
+#install.packages("readtext")
+#install.packages("tidyverse")
+#install.packages("quanteda.textstats")
+#install.packages("quanteda.textplots")
+#install.packages("data.table")
+#install.packages("stringr")
+#install.packages("spacyr")
+#install.packages("textcat")
+
+# load libraries
+library(quanteda)
+library(readtext)
+library(tidyverse)
+library(quanteda.textplots)
+library(quanteda.textstats)
+library(spacyr)
+library(stringr)
+library(data.table)
+library(textcat)
+
+spacy_initialize(model = "de_core_news_sm")
+```
+
+### Load Corpus Files and List of Compounds
+(Please make sure that the path is set to the current directory to run this code).
+```{r}
+# load corpus files 
+pro2000 = readRDS("../corpus_data/pro2000.rds")
+contra2000 = readRDS("../corpus_data/contra2000.rds")
+
+# load list of final climate change compounds 
+compounds <- scan("../files/wordlist.txt", what="", sep="\n")
+
+# load list of final climate change compounds and word forms
+compound_df <- read.csv("../files/compound.csv", sep = ";", stringsAsFactors=FALSE)
+
+# lower compounds and word forms                  
+compounds <- tolower(compounds)
+compound_df$original <- tolower(compound_df$original)
+compound_df$compound_forms <- tolower(compound_df$compound_forms)
+```
+
+# 1. Preprocessing
+
+## 1.1 Retrieve Stop Lists 
+```{r}
+# retrieve stoplists
+de_stopwords <- stopwords::stopwords("de", source="snowball")
+en_stopwords <- stopwords::stopwords("en", source="snowball" )
+
+# add custom stoplist
+custom_stopwords <- c("dass", "=", "the", "seit", "ab", "beim", "\n", "mal", "c", "\\|","|", "m", "kommentare", "neueste", "gepostet", "admin", "cookies", "inhalte", "inhalt", "newsletter", "posten", "zugriff", "passwort", "geschützt", "seite", "website", "webseite", "and", "0", "1", "2", "3","4","5","6","7","8","9", "mfg","w","t","wer","00", "30", ">", "anmelden", "\\+", "40", "81", "erneuerbarer",
+"OWLIT", "et", "\\´", "\\^", "tppubtype", "pubstate", "z", "b", "d", "ct", "--")
+
+# combine lists to a full version
+full_stopwords <- c(de_stopwords,en_stopwords,custom_stopwords)
+```
+
+## 1.2 Lemmatization
+Use the `spacy_parse` function to lemmatize the corpus data
+```{r}
+# parse the pro corpus with spacy function and retrieve lemma for each token
+sp_pro2000 <- spacy_parse(pro2000, pos=FALSE, entity=FALSE, dependency=FALSE)
+sp_contra2000 <- spacy_parse(contra2000, pos=FALSE, entity=FALSE, dependency=FALSE)
+```
+
+### Manually retrieve lemma form of compound words 
+Since `spacyr` is not capable of performing a lemmatization of our compound words, we use our manually created list of the word forms for all compound words to retrieve the lemma form. 
+```{r}
+# function to preprocess compounds data frame 
+unlist_forms = function(word){
+  x <- unlist(strsplit(word, ","))
+  return(gsub(" ","",x))}
+
+# retrieve lemma forms for our compound words 
+# for each compound word 
+for (words in compound_df$compound_forms){
+  word_forms = c(unlist_forms(words)) # put into correct format
+  
+  # each word form of the compound word 
+  for (token in word_forms){
+    
+    # retrieve the lemma form
+    lemma_form <- compound_df[compound_df$compound_forms %like% token, ]$original[[1]]
+  
+    # replace lemma form in pro and contra lemmatized data frame  
+    # to make sure we get correct lemma form
+    sp_pro2000$lemma[tolower(sp_pro2000$token) == token] <- lemma_form
+    sp_contra2000$lemma[tolower(sp_contra2000$token) == token] <- lemma_form
+    }
+}
+```
+
+```{r}
+# replace token with lemma - Pro Corpus
+sp_pro2000$token <- sp_pro2000$lemma
+
+# replace token with lemma - Contra Corpus
+sp_contra2000$token <- sp_contra2000$lemma
+```
+
+### Remove Hyphens from Words and Create Tokens Object 
+```{r}
+# remove hyphens from tokens
+sp_p2000_tokens <- as.tokens(sp_pro2000)
+toks_comp <- tokens_compound(sp_p2000_tokens, phrase("*-*"), concatenator ="")
+toks_hyphenated <- grep("\\w+-\\w+", types(toks_comp), value = TRUE)
+sp_p2000_tokens <- tokens_replace(toks_comp, toks_hyphenated, gsub("-", "", toks_hyphenated))
+
+sp_c2000_tokens <- as.tokens(sp_contra2000)
+toks_comp <- tokens_compound(sp_c2000_tokens, phrase("*-*"), concatenator ="")
+toks_hyphenated <- grep("\\w+-\\w+", types(toks_comp), value = TRUE)
+sp_c2000_tokens <- tokens_replace(toks_comp, toks_hyphenated, gsub("-", "", toks_hyphenated))
+```
+
+### Apply Preprocessing 
+```{r}
+sp_p2000_tokens <- sp_p2000_tokens %>% 
+  tokens(remove_punct = TRUE, remove_numbers = TRUE, remove_symbols = TRUE, remove_url = TRUE, 
+         remove_separators = TRUE, split_hyphens=FALSE) %>% 
+  tokens_tolower() %>% 
+  tokens_remove(pattern = full_stopwords, padding = FALSE)
+
+sp_c2000_tokens <- sp_c2000_tokens %>% 
+  tokens(remove_punct = TRUE, remove_numbers = TRUE, remove_symbols = TRUE, remove_url = TRUE, 
+         remove_separators = TRUE, split_hyphens=FALSE) %>% 
+  tokens_tolower() %>% 
+  tokens_remove(pattern = full_stopwords, padding = FALSE)
+```
+
+## 1.3 Create DFM 
+```{r}
+# create dfm
+dfm_p2000_lemma <- dfm(sp_p2000_tokens)
+dfm_c2000_lemma <- dfm(sp_c2000_tokens)
+```
+
+# 2. Corpus-Based Methods
+## 2.1 TF-IDF
+Create a function to normalize the TF-IDF scores
+```{r}
+# min/max normalization from -1 to 1, relative to data frame results
+normalize <- function(x, na.rm = TRUE){
+  return((x - min(x)) / (max(x)-min(x)))}
+```
+
+And compute TF-IDF
+```{r}
+# create a sample of the dfm with all words starting with "klima..." 
+klima_p2000 <- dfm_select(dfm_p2000_lemma, pattern="klima*")
+klima_c2000 <- dfm_select(dfm_c2000_lemma, pattern="klima*")
+
+# calculate tfidf for "klima" words
+p2000_tfidf <- dfm_tfidf(klima_p2000, scheme_tf = "prop", scheme_df = "inverse")
+c2000_tfidf <- dfm_tfidf(klima_c2000, scheme_tf = "prop", scheme_df = "inverse")
+
+# retrieve frequencies for "klima" words
+freqs_pro <- textstat_frequency(p2000_tfidf, force=TRUE)
+freqs_con <- textstat_frequency(c2000_tfidf, force=TRUE)
+
+# apply normalization
+freqs_pro$normalize = round(normalize(freqs_pro$frequency), 3)
+freqs_con$normalize = round(normalize(freqs_con$frequency), 3)
+
+# retrieve only words that are contained in our final compound list 
+freqs_pro_subset <- freqs_pro[freqs_pro$feature %in% compounds, ]
+freqs_pro_subset$feature <- str_to_title(freqs_pro_subset$feature)
+
+freqs_con_subset <- freqs_con[freqs_con$feature %in% compounds, ]
+freqs_con_subset$feature <- str_to_title(freqs_con_subset$feature)
+
+# plot comparison of both groups -> only words from compound list 
+freqs.act <- filter(freqs_pro_subset) %>% as.data.frame() %>% select(feature, normalize)
+freqs.scept <- filter(freqs_con_subset) %>% as.data.frame() %>% select(feature, normalize)
+freqs <- left_join(freqs.act, freqs.scept, by = "feature") %>% head(30) %>% arrange(normalize.x) %>% mutate(feature = factor(feature, feature))
+
+# create plot
+plot8 <- ggplot(freqs) +
+    geom_segment(aes(x=feature, xend=feature, y=normalize.x, yend=normalize.y), color="grey") +
+    geom_point(aes(x=feature, y=normalize.x, colour="Activists"), size = 3) +
+    geom_point(aes(x=feature, y=normalize.y, colour="Sceptics"), size = 3) +
+    ggtitle("Comparison 'Klima' TF-IDF Scores per Group") + 
+    xlab("") + ylab("TF-IDF") +
+    coord_flip()
+
+plot8+labs(colour="Group")
+
+#ggsave("/Users/anna/Documents/uni/im_glossary/kapitel/plots/comparison_klima_freqs_lemma.png", dpi=300, dev='png', height=6, width=12, units="in")
+```
+## 2.2 Retrieve Frequencies
+```{r}
+# retrieve frequencies 
+freq_klima_p2000 <- textstat_frequency(klima_p2000)#, n=1000)
+freq_klima_c2000 <- textstat_frequency(klima_c2000)#, n=50)
+
+# sort in descending manner
+freq_klima_p2000$feature <- with(freq_klima_p2000, reorder(feature, -frequency))
+freq_klima_c2000$feature <- with(freq_klima_c2000, reorder(feature, -frequency))
+
+# subset of klima compounds 
+freq_klima_p2000 <- freq_klima_p2000[freq_klima_p2000$feature %in% compounds, ]
+freq_klima_c2000 <- freq_klima_c2000[freq_klima_c2000$feature %in% compounds, ]
+
+freq_klima_p2000
+freq_klima_c2000
+```
+### Get Most Frequent Words per Corpus (TOP-10)
+```{r}
+print("PRO TOP-10")
+head(freq_klima_p2000$feature, 10)
+```
+
+```{r}
+print("CONTRA TOP-10")
+head(freq_klima_c2000$feature, 10)
+```
+
+## 2.3 Keyword-In-Context Analysis
+Let's have a short look at KWIC results for "Klimaleugner".
+```{r}
+# for pro corpus
+kwic(sp_p2000_tokens, pattern = phrase("klimaleugner"), window=10, valuetype = "fixed")
+```
+```{r}
+# for contra corpus
+kwic(sp_c2000_tokens, pattern = phrase("klimaleugner"), window=10, valuetype = "fixed")
+```
+
+## 2.4 Collocations
+To check the collocations of a compound word, we firstly retrieve the context of the word via KWIC with a window of 1 (because we are looking for bigrams).
+Then we count the words preceding and following the keyword. 
+
+Pro Corpus
+```{r}
+# apply keyword-in-context function for given word
+kwic_pro <- kwic(sp_p2000_tokens, pattern = phrase("klimakrise"), window=1, valuetype = "regex") %>%
+  as_tibble()
+
+kwic_pro %>%
+  count(pre) %>%
+  arrange(desc(n))
+
+kwic_pro %>%
+  count(post) %>%
+  arrange(desc(n))
+```
+
+Contra Corpus
+```{r}
+# apply keyword-in-context function for given word
+kwic_con <- kwic(sp_c2000_tokens, pattern = phrase("klimakrise"), window=1, valuetype = "regex") %>%
+  as_tibble()
+
+kwic_con %>%
+  count(pre) %>%
+  arrange(desc(n))
+
+kwic_con %>%
+  count(post) %>%
+  arrange(desc(n))
+```
+# 3. Add Data to Corpus
+## 3.1 Load New Text Files and Create Corpus Object
+(To run this code, please unzip `corpus_data/text_files.zip` file first.)
+```{r}
+# add farn to pro2000
+# add klimaschwindel to contra2000
+# add compact to contra2000
+
+### NF-FARN.DE
+# load climate change activists texts
+farn_texts <- readtext("../corpus_data/text_files/pro/farn_texts/*") # /* is used to retrieve all files inside the directory
+
+# create corpus
+farn_corpus <- corpus(farn_texts)
+docvars(farn_corpus, "origin") <- "farn" # change string to your desired origin tag
+docvars(farn_corpus, "language") <- textcat(farn_corpus)
+
+# drop all non german texts
+farn_corpus <- corpus_subset(farn_corpus, language == "german", drop_docid = TRUE)
+
+### COMPACT MAGAZIN
+compact_texts <- readtext("../corpus_data/text_files/contra/compact_texts/*")
+
+# create corpus
+compact_corpus <- corpus(compact_texts)
+docvars(compact_corpus, "origin") <- "compact" # change string to your desired origin tag
+docvars(compact_corpus, "language") <- textcat(compact_corpus)
+
+# drop all non german texts
+compact_corpus <- corpus_subset(compact_corpus, language == "german", drop_docid = TRUE)
+
+### Klimaschwindel Website
+
+klimaschwindel_texts <- readtext("../corpus_data/text_files/contra/klimaschwindel_texts/*")
+
+# create corpus
+klimaschwindel_corpus <- corpus(klimaschwindel_texts)
+docvars(klimaschwindel_corpus, "origin") <- "klimaschwindel" # change string to your desired origin tag
+docvars(klimaschwindel_corpus, "language") <- textcat(klimaschwindel_corpus)
+
+# drop all non german texts
+klimaschwindel_corpus <- corpus_subset(klimaschwindel_corpus, language == "german", drop_docid = TRUE)
+```
+
+## 3.2 Merge New Corpus Texts with Old Corpora
+```{r}
+# add to previous corpus 
+pro2022 <- pro2000 + farn_corpus
+contra2022 <- contra2000 + compact_corpus + klimaschwindel_corpus
+
+# create docvars
+docvars(contra2022, "group") <- "sceptics"
+docvars(pro2022, "group") <- "activists"
+```
+
+## 3.3 Save Corpus Objects 
+```{r}
+#saveRDS(pro2022, "pro2022.rds")
+#saveRDS(contra2022, "contra2022.rds")
+
+# Run this to get corpus overview asl CSV file
+#write.csv(summary(pro2022, n=ndoc(pro2022)), "corpus/pro2022_overview.csv")
+#write.csv(summary(contra2022, n=ndoc(contra2022)), "corpus/contra2022_overview.csv")
+```
+
+## 3.4 Retrieve New Corpus Statistics
+### 3.4.1 Average Number of Sentences per Text
+```{r}
+# get mean of sentences count for corpus
+sentences = summary(pro2022, n=ndoc(pro2022))$Sentences
+mean(sentences)
+```
+
+```{r}
+# get mean of sentences count for corpus
+sentences = summary(contra2022, n=ndoc(contra2022))$Sentences
+mean(sentences)
+```
+
+### 3.4.2 Token Count for each Corpus
+```{r}
+sum(summary(contra2022, n=ndoc(contra2022))$Tokens)
+sum(summary(pro2022, n=ndoc(pro2022))$Tokens)
+```
