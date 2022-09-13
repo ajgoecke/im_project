@@ -17,8 +17,8 @@ Furthermore, you can find the project report and the corpus files within the rep
 ### Corpus Files
 The folder `corpus_data`contains all corpus files and rare text files from the websites which we used to generate the corpora. 
 
-- contains the corpora (new and old version)
-- `text_files.zip` (all text files which are contained in the corpora)
+- `corpora.zip`: contains new (C2022, P2022) and old (C2000, P2000) corpus files. Please unzip before running the notebooks.
+- `text_files.zip`:  consists of all text files which were obtained via web scraping and are used for corpus creation
 
 ### Glossary Files
 The folder `files` contains a table and list of the compound words which we use in the glossary.
