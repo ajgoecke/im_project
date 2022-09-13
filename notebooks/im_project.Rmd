@@ -52,10 +52,7 @@ compound_df$compound_forms <- tolower(compound_df$compound_forms)
 ```
 
 # 1. Preprocessing
-To preprocess the corpora, we perform several steps:
-- stop word removal
-- lemmazitaion
-- removal of hyphens
+To preprocess the corpora, we perform several steps: stop word removal, lemmazitaion, removal of hyphens  
 
 ## 1.1 Retrieve Stop Lists 
 ```{r}
@@ -165,48 +162,6 @@ normalize <- function(x, na.rm = TRUE){
 ```
 
 And compute TF-IDF of the DFMs
-```{r}
-# create a sample of the dfm with all words starting with "klimaX" 
-klima_p2000 <- dfm_select(dfm_p2000_lemma, pattern="klima*")
-klima_c2000 <- dfm_select(dfm_c2000_lemma, pattern="klima*")
-
-# calculate tfidf for "klima" words
-p2000_tfidf <- dfm_tfidf(klima_p2000, scheme_tf = "prop", scheme_df = "inverse")
-c2000_tfidf <- dfm_tfidf(klima_c2000, scheme_tf = "prop", scheme_df = "inverse")
-
-# retrieve frequencies for "klima" words
-freqs_pro <- textstat_frequency(p2000_tfidf, force=TRUE)
-freqs_con <- textstat_frequency(c2000_tfidf, force=TRUE)
-
-# apply normalization
-freqs_pro$normalize = round(normalize(freqs_pro$frequency), 3)
-freqs_con$normalize = round(normalize(freqs_con$frequency), 3)
-
-# subset for words that are contained in our final glossary list 
-freqs_pro_subset <- freqs_pro[freqs_pro$feature %in% compounds, ]
-freqs_pro_subset$feature <- str_to_title(freqs_pro_subset$feature)
-
-freqs_con_subset <- freqs_con[freqs_con$feature %in% compounds, ]
-freqs_con_subset$feature <- str_to_title(freqs_con_subset$feature)
-
-# plot comparison of this subset for both groups 
-freqs.act <- filter(freqs_pro_subset) %>% as.data.frame() %>% select(feature, normalize)
-freqs.scept <- filter(freqs_con_subset) %>% as.data.frame() %>% select(feature, normalize)
-freqs <- left_join(freqs.act, freqs.scept, by = "feature") %>% head(30) %>% arrange(normalize.x) %>% mutate(feature = factor(feature, feature))
-
-# create plot
-plot8 <- ggplot(freqs) +
-    geom_segment(aes(x=feature, xend=feature, y=normalize.x, yend=normalize.y), fill=c("red","blue"), color="grey") +
-    geom_point(aes(x=feature, y=normalize.x, colour="Activists"), size = 3) +
-    geom_point(aes(x=feature, y=normalize.y, colour="Sceptics"), size = 3) +
-    ggtitle("Comparison 'Klima' TF-IDF Scores per Group") + 
-    xlab("") + ylab("TF-IDF") +
-    coord_flip()
-
-plot8+labs(colour="Group")
-
-#ggsave("/Users/anna/Documents/uni/tfidf_norm.png", dpi=300, dev='png', height=6, width=12, units="in")
-```
 ```{r}
 # create a sample of the dfm with all words starting with "klima..." 
 klima_p2000 <- dfm_select(dfm_p2000_lemma, pattern="klima*")
@@ -324,7 +279,7 @@ kwic_con %>%
 ```
 # 3. Add Data to Corpus
 ## 3.1 Load New Text Files and Create Corpus Object
-(To run this code, please unzip `corpus_data/text_files.zip` file first.)
+(To run this code, please unzip `corpus_data/text_files.zip` and `corpus_data/corpora.zip` files first.)
 ```{r}
 # add farn to pro2000
 # add klimaschwindel to contra2000
